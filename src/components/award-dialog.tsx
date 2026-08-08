@@ -4,10 +4,9 @@ import { useMemo, useRef, useState } from "react";
 
 import { useCelebration } from "@/components/celebration";
 import { TeamCrest } from "@/components/team-crest";
-import { Button, Dialog, Field, inputClass, useToast } from "@/components/ui";
+import { Button, Dialog, Field, inputClass } from "@/components/ui";
 import { api, ApiError } from "@/lib/client";
 import { cn } from "@/lib/cn";
-import { signed } from "@/lib/format";
 import { getColor } from "@/lib/palette";
 import { LIMITS, type PublicState, type PublicTeam } from "@/lib/types";
 
@@ -61,7 +60,6 @@ function AwardForm({
   onClose: () => void;
   onApplied: (state: PublicState) => void;
 }) {
-  const { push } = useToast();
   const celebrate = useCelebration();
 
   const [mode, setMode] = useState<"award" | "deduct">("award");
@@ -89,6 +87,8 @@ function AwardForm({
     setError(null);
     try {
       const result = await api.award(team.id, delta, reason.trim());
+      // The announcement, and its Undo, come from <PointPopup/> — it fires from
+      // the shared state so every open device shows the same thing.
       onApplied(result.state);
       if (delta > 0) {
         celebrate(
@@ -97,27 +97,6 @@ function AwardForm({
           delta >= 25 ? 2.4 : 1.2,
         );
       }
-      push({
-        tone: "success",
-        title: `${signed(delta)} for ${team.name}`,
-        detail: reason.trim(),
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            try {
-              const undone = await api.undo(result.event.id);
-              onApplied(undone.state);
-              push({ tone: "info", title: `Took back ${signed(delta)} from ${team.name}` });
-            } catch (err) {
-              push({
-                tone: "error",
-                title: "Couldn't undo that",
-                detail: err instanceof ApiError ? err.message : undefined,
-              });
-            }
-          },
-        },
-      });
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't reach the server.");

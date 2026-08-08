@@ -15,10 +15,13 @@ import { cn } from "@/lib/cn";
 export function CountUp({
   value,
   className,
+  style,
   durationMs = 750,
 }: {
   value: number;
   className?: string;
+  /** For callers that size the number from available space, e.g. the big screen. */
+  style?: React.CSSProperties;
   durationMs?: number;
 }) {
   const [tween, setTween] = useState<number | null>(null);
@@ -58,5 +61,9 @@ export function CountUp({
     };
   }, [value, durationMs]);
 
-  return <span className={cn("tnum", className)}>{(tween ?? value).toLocaleString()}</span>;
+  return (
+    <span className={cn("tnum", className)} style={style}>
+      {(tween ?? value).toLocaleString()}
+    </span>
+  );
 }

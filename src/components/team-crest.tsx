@@ -25,6 +25,7 @@ export function TeamCrest({
   className,
   label,
   glow = false,
+  dimension,
 }: {
   logo: string;
   color: string;
@@ -32,6 +33,12 @@ export function TeamCrest({
   className?: string;
   label?: string;
   glow?: boolean;
+  /**
+   * Any CSS length, for callers that size the crest from available space
+   * rather than from the fixed scale — the big screen fits N teams on one
+   * page, so its crests can't come from a preset ladder.
+   */
+  dimension?: string;
 }) {
   const theme = getColor(color);
   const crest = getLogo(logo);
@@ -45,10 +52,11 @@ export function TeamCrest({
       title={label}
       className={cn(
         "relative inline-grid shrink-0 place-items-center rounded-full select-none",
-        dims.box,
+        !dimension && dims.box,
         className,
       )}
       style={{
+        ...(dimension ? { width: dimension, height: dimension, fontSize: dimension } : null),
         background: `radial-gradient(120% 120% at 30% 22%, ${theme.light} 0%, ${theme.base} 52%, ${theme.dark} 100%)`,
         boxShadow: glow
           ? `0 0 0 ${dims.ring}px color-mix(in oklab, ${theme.base} 24%, transparent), 0 10px 30px -8px ${theme.base}88`
@@ -70,8 +78,13 @@ export function TeamCrest({
         style={{ borderColor: "rgb(255 255 255 / 0.28)" }}
       />
       <span
-        className={cn("relative leading-none", dims.glyph)}
-        style={{ filter: "drop-shadow(0 1px 1px rgb(0 0 0 / 0.32))" }}
+        className={cn("relative leading-none", !dimension && dims.glyph)}
+        style={{
+          filter: "drop-shadow(0 1px 1px rgb(0 0 0 / 0.32))",
+          // The wrapper's font-size is the crest diameter, so this keeps the
+          // glyph at a constant proportion of the medallion at any size.
+          ...(dimension ? { fontSize: "0.56em" } : null),
+        }}
       >
         {crest.glyph}
       </span>

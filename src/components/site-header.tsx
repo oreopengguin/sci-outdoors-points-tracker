@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Wordmark } from "@/components/brand";
 import { useLive } from "@/components/live-state";
@@ -24,6 +24,17 @@ export function SiteHeader() {
   const { push } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  // Tell the globally-mounted point popup how far down to start, so it never
+  // parks on top of the navigation. Pages without a header (the big screen)
+  // keep the default and sit right at the top.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--popup-top", "5.5rem");
+    return () => {
+      root.style.removeProperty("--popup-top");
+    };
+  }, []);
 
   const signedIn = data?.signedIn ?? false;
 

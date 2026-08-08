@@ -9,6 +9,7 @@ import { Chip } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { ordinal, plural } from "@/lib/format";
 import { getColor } from "@/lib/palette";
+import { useEntryAnimation } from "@/lib/use-entry-animation";
 import { useClock } from "@/lib/use-clock";
 import type { PublicTeam } from "@/lib/types";
 
@@ -32,6 +33,7 @@ export function LeaderboardRow({
   compact = false,
   crestSize,
   onSelect,
+  animateIn = false,
 }: {
   team: PublicTeam;
   leaderPoints: number;
@@ -40,6 +42,8 @@ export function LeaderboardRow({
   compact?: boolean;
   crestSize?: CrestSize;
   onSelect?: (team: PublicTeam) => void;
+  /** Off after first paint, so a reorder never blanks a row. */
+  animateIn?: boolean;
 }) {
   const theme = getColor(team.color);
   // Nobody "leads" a tie — at the start of a season every team is on zero, and
@@ -55,12 +59,13 @@ export function LeaderboardRow({
     <Wrapper
       {...(onSelect ? { type: "button" as const, onClick: () => onSelect(team) } : {})}
       className={cn(
-        "group relative flex w-full items-center gap-3 overflow-hidden rounded-[var(--radius-card)] border text-left transition anim-rise sm:gap-5",
+        "group relative flex w-full items-center gap-3 overflow-hidden rounded-[var(--radius-card)] border text-left transition sm:gap-5",
+        animateIn && "anim-rise",
         compact ? "px-3 py-3 sm:px-4" : "px-4 py-4 sm:px-6 sm:py-5",
         onSelect && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]",
       )}
       style={{
-        animationDelay: `${Math.min(index, 12) * 55}ms`,
+        animationDelay: animateIn ? `${Math.min(index, 12) * 55}ms` : undefined,
         borderColor: isLeader
           ? `color-mix(in oklab, ${theme.base} 45%, transparent)`
           : "var(--line)",
@@ -193,6 +198,7 @@ export function Leaderboard({
   celebrateLeadChange?: boolean;
 }) {
   const celebrate = useCelebration();
+  const animateIn = useEntryAnimation();
   const lastLeader = useRef<string | null>(null);
 
   const { leaderPoints, lowestPoints } = useMemo(
@@ -233,6 +239,7 @@ export function Leaderboard({
             lowestPoints={lowestPoints}
             compact={compact}
             onSelect={onSelect}
+            animateIn={animateIn}
           />
         </li>
       ))}

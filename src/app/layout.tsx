@@ -6,6 +6,7 @@ import Script from "next/script";
 import "./globals.css";
 import { TopoBackdrop } from "@/components/brand";
 import { LiveStateProvider } from "@/components/live-state";
+import { PointPopup } from "@/components/point-popup";
 import { ThemeProvider } from "@/components/theme";
 import { ToastProvider } from "@/components/ui";
 
@@ -81,7 +82,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         </a>
         <ThemeProvider>
           <ToastProvider>
-            <LiveStateProvider initial={null}>{children}</LiveStateProvider>
+            <LiveStateProvider initial={null}>
+              {children}
+              <PointPopup />
+            </LiveStateProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>

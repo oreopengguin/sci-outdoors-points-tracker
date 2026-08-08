@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 
 import { Wordmark } from "@/components/brand";
 import { CountUp } from "@/components/count-up";
 import { BoardSkeleton, NotConfigured } from "@/components/empty-states";
 import { ActivityTicker } from "@/components/activity";
-import { LeaderboardRow } from "@/components/leaderboard";
 import { useLive } from "@/components/live-state";
 import { TeamCrest } from "@/components/team-crest";
 import { Button } from "@/components/ui";
@@ -15,15 +14,19 @@ import { cn } from "@/lib/cn";
 import { clockTime, ordinal } from "@/lib/format";
 import { getColor } from "@/lib/palette";
 import { useClock } from "@/lib/use-clock";
+import { useEntryAnimation } from "@/lib/use-entry-animation";
 import type { PublicTeam } from "@/lib/types";
 
+const MEDALS = ["🥇", "🥈", "🥉"];
+
 /**
- * Projector mode: huge type, a real podium, no chrome. Built to be left on a
- * screen at the front of a room all day.
+ * Projector mode: every team on one screen, ranked top to bottom, no scrolling
+ * and no chrome. Built to be left on a screen at the front of a room all day.
  */
 export default function DisplayPage() {
   const { data, status } = useLive();
   const now = useClock(15_000);
+  const animateIn = useEntryAnimation();
 
   const enterFullscreen = useCallback(() => {
     const el = document.documentElement;
@@ -44,9 +47,6 @@ export default function DisplayPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [enterFullscreen]);
 
-  const podium = useMemo(() => (data ? data.teams.slice(0, 3) : []), [data]);
-  const rest = useMemo(() => (data ? data.teams.slice(3) : []), [data]);
-
   if (!data) {
     return (
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-6 py-10">
@@ -63,22 +63,40 @@ export default function DisplayPage() {
     );
   }
 
-  const leaderPoints = data.teams.length ? data.teams[0].points : 0;
-  const lowestPoints = data.teams.length ? data.teams[data.teams.length - 1].points : 0;
+  const teams = data.teams;
+  const leaderPoints = teams.length ? teams[0].points : 0;
+  const lowestPoints = teams.length ? teams[teams.length - 1].points : 0;
+
+  /**
+   * Type scales with how many teams there are, so a two-team board is huge and
+   * a sixteen-team board still fits. The flex rows below do the exact fitting;
+   * these sizes just keep the proportions right at each count.
+   */
+  const rowVh = Math.max(3.4, 66 / Math.max(teams.length, 1));
+  const scale = {
+    crest: `clamp(26px, ${(rowVh * 0.66).toFixed(2)}vh, 104px)`,
+    rank: `clamp(0.95rem, ${(rowVh * 0.4).toFixed(2)}vh, 3.4rem)`,
+    name: `clamp(0.95rem, ${(rowVh * 0.34).toFixed(2)}vh, 3rem)`,
+    points: `clamp(1.15rem, ${(rowVh * 0.52).toFixed(2)}vh, 5rem)`,
+    medal: `clamp(0.7rem, ${(rowVh * 0.24).toFixed(2)}vh, 2rem)`,
+  };
 
   return (
-    <main id="main" className="flex min-h-full flex-1 flex-col px-4 py-4 sm:px-8 sm:py-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
+    <main
+      id="main"
+      className="flex h-[100dvh] flex-1 flex-col overflow-hidden px-3 py-3 sm:px-6 sm:py-4"
+    >
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <Link href="/" className="rounded-lg" aria-label="Back to the leaderboard">
           <Wordmark size="md" />
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="font-display text-lg font-bold text-ink sm:text-2xl">
+            <p className="font-display text-base font-bold text-ink sm:text-2xl">
               {data.season.name}
             </p>
-            <p className="text-[12px] font-semibold uppercase tracking-wider text-ink-faint tabular-nums">
-              {now === null ? " " : clockTime(now)} · live
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint tabular-nums sm:text-[12px]">
+              {now === null ? " " : clockTime(now)} · live
             </p>
           </div>
           <Button
@@ -92,117 +110,153 @@ export default function DisplayPage() {
         </div>
       </header>
 
-      <div className="mt-5 flex flex-1 flex-col gap-5">
-        {podium.length > 0 ? <Podium teams={podium} /> : null}
+      {/* One ranked column. `flex-1` on every row divides the leftover height
+          evenly, which is what guarantees the whole table fits without a
+          scrollbar no matter how many teams there are. */}
+      <ol
+        className="mt-2.5 flex min-h-0 flex-1 flex-col gap-1.5 sm:mt-3 sm:gap-2"
+        aria-label="Team standings, highest first"
+      >
+        {teams.map((team, index) => (
+          <li key={team.id} className="display-row flex min-h-0 flex-1">
+            <DisplayRow
+              team={team}
+              index={index}
+              leaderPoints={leaderPoints}
+              lowestPoints={lowestPoints}
+              scale={scale}
+              animateIn={animateIn}
+            />
+          </li>
+        ))}
+      </ol>
 
-        {rest.length > 0 ? (
-          <ol className="grid gap-2 lg:grid-cols-2">
-            {rest.map((team, index) => (
-              <li key={team.id}>
-                <LeaderboardRow
-                  team={team}
-                  index={index + 3}
-                  leaderPoints={leaderPoints}
-                  lowestPoints={lowestPoints}
-                  compact
-                />
-              </li>
-            ))}
-          </ol>
-        ) : null}
-
-        <div className="mt-auto">
-          <ActivityTicker events={data.events} />
-        </div>
+      <div className="mt-2 shrink-0 sm:mt-3">
+        <ActivityTicker events={data.events} />
       </div>
     </main>
   );
 }
 
-const MEDALS = ["🥇", "🥈", "🥉"];
+/** Bar length is relative to the leader, with a floor so a 0 never vanishes. */
+function barFraction(points: number, leader: number, lowest: number): number {
+  const span = Math.max(leader - Math.min(0, lowest), 1);
+  return Math.max(0.045, Math.min(1, (points - Math.min(0, lowest)) / span));
+}
 
-/** Gold–silver–bronze, with first place raised in the middle on wide screens. */
-function Podium({ teams }: { teams: PublicTeam[] }) {
-  const order = teams.length >= 3 ? [teams[1], teams[0], teams[2]] : teams;
-  const heights = teams.length >= 3 ? ["lg:mt-10", "", "lg:mt-16"] : [""];
+function DisplayRow({
+  team,
+  index,
+  leaderPoints,
+  lowestPoints,
+  scale,
+  animateIn,
+}: {
+  team: PublicTeam;
+  index: number;
+  leaderPoints: number;
+  lowestPoints: number;
+  scale: { crest: string; rank: string; name: string; points: string; medal: string };
+  /** Off after first paint, so a reorder never blanks a row. */
+  animateIn: boolean;
+}) {
+  const theme = getColor(team.color);
+  const leading = team.rank === 1 && !team.tied;
+  const fraction = barFraction(team.points, leaderPoints, lowestPoints);
 
   return (
-    <ol className="grid gap-3 sm:gap-4 lg:grid-cols-3" aria-label="Top three teams">
-      {order.map((team, i) => {
-        const theme = getColor(team.color);
-        const first = team.rank === 1 && !team.tied;
-        return (
-          <li
-            key={team.id}
-            className={cn("anim-rise", heights[i] ?? "")}
-            style={{ animationDelay: `${i * 90}ms` }}
+    <div
+      className={cn(
+        "relative flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl border px-2.5 sm:gap-4 sm:px-4",
+        animateIn && "anim-rise",
+      )}
+      style={{
+        animationDelay: animateIn ? `${Math.min(index, 14) * 45}ms` : undefined,
+        borderColor: leading
+          ? `color-mix(in oklab, ${theme.base} 52%, transparent)`
+          : `color-mix(in oklab, ${theme.base} 22%, var(--line))`,
+        background: leading
+          ? `linear-gradient(112deg, color-mix(in oklab, ${theme.base} 20%, var(--surface)) 0%, var(--surface) 66%)`
+          : `linear-gradient(112deg, color-mix(in oklab, ${theme.base} 8%, var(--surface)) 0%, var(--surface) 60%)`,
+        boxShadow: leading
+          ? `0 2px 8px rgb(22 32 26 / 0.06), 0 22px 48px -28px ${theme.base}`
+          : "var(--shadow-card)",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="absolute inset-y-0 left-0 w-1.5"
+        style={{ background: `linear-gradient(${theme.light}, ${theme.dark})` }}
+      />
+
+      <span
+        className="ml-1 grid shrink-0 place-items-center font-display font-black leading-none tabular-nums"
+        style={{
+          fontSize: scale.rank,
+          minWidth: "1.6em",
+          color: leading ? theme.base : "var(--ink-faint)",
+        }}
+        aria-hidden="true"
+      >
+        {team.rank}
+      </span>
+
+      <TeamCrest
+        logo={team.logo}
+        color={team.color}
+        dimension={scale.crest}
+        glow={leading}
+        className={leading ? "anim-float" : undefined}
+      />
+
+      <span className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span
+            className="min-w-0 truncate font-display font-black leading-tight tracking-tight text-ink"
+            style={{ fontSize: scale.name }}
+            title={team.name}
           >
-            <div
-              className={cn(
-                "relative flex h-full flex-col items-center overflow-hidden rounded-[var(--radius-card)] border px-5 text-center",
-                first ? "py-8 sm:py-10" : "py-6 sm:py-7",
-              )}
-              style={{
-                borderColor: `color-mix(in oklab, ${theme.base} ${first ? 55 : 32}%, transparent)`,
-                background: `linear-gradient(168deg, color-mix(in oklab, ${theme.base} ${first ? 20 : 12}%, var(--surface)) 0%, var(--surface) 72%)`,
-                boxShadow: first
-                  ? `0 2px 6px rgb(22 32 26 / .06), 0 34px 70px -32px ${theme.base}`
-                  : "var(--shadow-card)",
-              }}
+            {team.name}
+          </span>
+          {team.rank <= 3 && !team.tied ? (
+            <span
+              aria-hidden="true"
+              className="display-medal shrink-0 leading-none opacity-80"
+              style={{ fontSize: scale.medal }}
             >
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-0 top-0 h-1.5"
-                style={{
-                  background: `linear-gradient(90deg, ${theme.light}, ${theme.base}, ${theme.dark})`,
-                }}
-              />
+              {MEDALS[team.rank - 1]}
+            </span>
+          ) : null}
+          {team.tied ? (
+            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+              tied {ordinal(team.rank)}
+            </span>
+          ) : null}
+        </span>
 
-              <span
-                className="flex items-center gap-1.5 font-display text-[11px] font-black uppercase tracking-[0.22em]"
-                style={{ color: theme.base }}
-              >
-                {!team.tied && team.rank <= 3 ? (
-                  <span aria-hidden="true" className="text-base">
-                    {MEDALS[team.rank - 1]}
-                  </span>
-                ) : null}
-                {ordinal(team.rank)}
-                {first ? " · leading" : team.tied ? " · tied" : ""}
-              </span>
+        <span
+          className="display-bar relative h-1.5 w-full overflow-hidden rounded-full sm:h-2"
+          role="presentation"
+          style={{ background: `color-mix(in oklab, ${theme.base} 14%, transparent)` }}
+        >
+          <span
+            className={cn(
+              "absolute inset-y-0 left-0 rounded-full transition-[width] duration-[900ms] ease-out",
+              leading && "shimmer",
+            )}
+            style={{
+              width: `${fraction * 100}%`,
+              background: `linear-gradient(90deg, ${theme.light}, ${theme.base})`,
+            }}
+          />
+        </span>
+      </span>
 
-              <TeamCrest
-                logo={team.logo}
-                color={team.color}
-                size={first ? "hero" : "xl"}
-                glow={first}
-                className={cn("mt-4", first && "anim-float")}
-              />
-
-              <p
-                className={cn(
-                  "mt-4 max-w-full truncate font-display font-black tracking-tight text-ink",
-                  first ? "text-3xl sm:text-4xl" : "text-2xl sm:text-3xl",
-                )}
-                title={team.name}
-              >
-                {team.name}
-              </p>
-
-              <CountUp
-                value={team.points}
-                className={cn(
-                  "mt-1 font-display font-black leading-none",
-                  first ? "text-6xl sm:text-8xl" : "text-5xl sm:text-6xl",
-                )}
-              />
-              <span className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-faint">
-                points
-              </span>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+      <CountUp
+        value={team.points}
+        className="shrink-0 font-display font-black leading-none"
+        style={{ fontSize: scale.points }}
+      />
+    </div>
   );
 }
