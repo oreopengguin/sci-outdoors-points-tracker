@@ -45,8 +45,10 @@ credentials, set `TEACHER_USERNAME` and `TEACHER_PASSWORD_HASH` (see below).
 
 ## Deploying to Vercel
 
-1. Import this repository on [vercel.com/new](https://vercel.com/new). The defaults are correct —
-   it is a stock Next.js app.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Foreopengguin%2Fsci-outdoors-points-tracker&project-name=sci-outdoors-points-tracker&repository-name=sci-outdoors-points-tracker)
+
+1. Import this repository on [vercel.com/new](https://vercel.com/new), or use the button above. The
+   defaults are correct — it is a stock Next.js app, so there is nothing to configure.
 2. **Add a key-value store.** In the project's **Storage** tab, add any Redis-compatible store
    (Upstash Redis works out of the box). Vercel injects `KV_REST_API_URL` and `KV_REST_API_TOKEN`
    automatically, which is all the app needs.
