@@ -108,7 +108,12 @@ export function LiveStateProvider({
     setData((prev) =>
       prev
         ? { ...prev, ...next }
-        : { ...next, signedIn: false, teacher: null, storage: { durable: true, driver: "redis" } },
+        : {
+            ...next,
+            signedIn: false,
+            teacher: null,
+            storage: { durable: true, driver: "redis", sessionsPersist: true },
+          },
     );
     setStatus("ready");
     setError(null);

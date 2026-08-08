@@ -11,6 +11,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function TeacherLayout({ children }: LayoutProps<"/teacher">) {
   const session = await getSession();
-  if (!session) redirect("/login");
+  // The marker tells the login page it got here by being turned away, so it
+  // knows never to bounce straight back — that is what turns a rejected
+  // session into an endless flicker instead of a message you can read.
+  if (!session) redirect("/login?from=teacher");
   return <>{children}</>;
 }

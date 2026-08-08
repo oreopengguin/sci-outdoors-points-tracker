@@ -5,7 +5,7 @@ import type { PointEvent, PublicState } from "@/lib/types";
 export type LiveState = PublicState & {
   signedIn: boolean;
   teacher: string | null;
-  storage: { durable: boolean; driver: string };
+  storage: { durable: boolean; driver: string; sessionsPersist: boolean };
 };
 
 export class ApiError extends Error {

@@ -55,19 +55,35 @@ credentials, set `TEACHER_USERNAME` and `TEACHER_PASSWORD_HASH` (see below).
 3. Redeploy.
 
 Without a store, the app falls back to the local filesystem. That is fine for development, but a
-serverless deployment gets a fresh filesystem per instance — so scores would come and go. The app
-detects this and shows a warning banner to signed-in teachers.
+serverless deployment gets a fresh filesystem per instance — so scores would come and go, and
+sign-in would not work at all. The app detects this: it shows a warning banner to signed-in
+teachers, and refuses to sign anyone in rather than handing out a session the next request would
+reject.
+
+### If sign-in bounces you back to the login page
+
+That means the deployment has no shared session-signing key, so the server that issued your cookie
+and the server that checked it disagreed. Either fix works:
+
+- Add a Redis store as above (recommended — you need it for the scores anyway), **or**
+- Set an `AUTH_SECRET` environment variable to any long random string:
+
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+  ```
+
+Then redeploy and sign in again.
 
 ### Environment variables
 
 All of these are optional.
 
-| Variable                | Purpose                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------ |
-| `KV_REST_API_URL`       | Redis REST endpoint. `UPSTASH_REDIS_REST_URL` also works.                              |
-| `KV_REST_API_TOKEN`     | Redis REST token. `UPSTASH_REDIS_REST_TOKEN` also works.                                |
-| `TEACHER_USERNAME`      | Overrides the sign-in username. Defaults to `soteacher`.                                |
-| `TEACHER_PASSWORD_HASH` | Overrides the password. See below for how to generate one.                              |
+| Variable                | Purpose                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `KV_REST_API_URL`       | Redis REST endpoint. `UPSTASH_REDIS_REST_URL` also works.                                |
+| `KV_REST_API_TOKEN`     | Redis REST token. `UPSTASH_REDIS_REST_TOKEN` also works.                                 |
+| `TEACHER_USERNAME`      | Overrides the sign-in username. Defaults to `soteacher`.                                 |
+| `TEACHER_PASSWORD_HASH` | Overrides the password. See below for how to generate one.                               |
 | `AUTH_SECRET`           | Session signing key. If unset, one is generated and stored in the KV store on first use. |
 | `SOT_DATA_DIR`          | Where the filesystem fallback writes. Development only.                                  |
 
@@ -91,13 +107,13 @@ Students will poke at this. The design assumes that.
   paths run the key derivation so the timing matches.
 - **CSRF** is blocked with a double-submit token plus an `Origin` check, so another site cannot make
   a signed-in teacher's browser award points.
-- **Rate limiting** caps sign-in attempts per client, with a separate global cap on *failures* to
+- **Rate limiting** caps sign-in attempts per client, with a separate global cap on _failures_ to
   catch someone rotating IP headers.
 - **Content-Security-Policy** requires a per-request nonce on every script, so an injected
   `<script>` will not execute. Framing, sniffing and referrer leakage are blocked too.
 - **All input is validated server-side** with Zod — point deltas are capped, reasons are length
   limited, and crest and colour ids must exist in the catalogue.
-- **Resetting** needs a valid session, a valid CSRF token *and* a typed confirmation phrase.
+- **Resetting** needs a valid session, a valid CSRF token _and_ a typed confirmation phrase.
 - **Concurrent edits** use a compare-and-set loop, so two teachers scoring at once can't clobber
   each other.
 

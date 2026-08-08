@@ -3,7 +3,7 @@ import "server-only";
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 
-import { incrementWithTtl, readCounter, readRaw, writeRaw } from "@/lib/store";
+import { compareAndSet, incrementWithTtl, readCounter, readRaw, storageHealth } from "@/lib/store";
 
 /**
  * Authentication for the teacher console.
@@ -40,10 +40,14 @@ let cachedSecret: Buffer | null = null;
 /**
  * Signing key for session cookies.
  *
- * `AUTH_SECRET` wins when set. Otherwise we generate one and persist it in the
- * store so every serverless instance signs with the same key — that keeps the
- * app secure out of the box without asking anyone to paste a random string
- * into an env var before the first login works.
+ * Every instance of the app must arrive at the *same* key, or a cookie minted
+ * by one server gets rejected by the next and the user bounces between the
+ * login page and the console forever.
+ *
+ * `AUTH_SECRET` wins when set — that is the only option that needs nothing else
+ * to be true. Otherwise we generate one and claim it in the shared store with a
+ * compare-and-set, so if several cold instances start at once exactly one wins
+ * and the rest adopt the winner's key instead of each keeping its own.
  */
 async function getSecret(): Promise<Buffer> {
   if (cachedSecret) return cachedSecret;
@@ -60,10 +64,29 @@ async function getSecret(): Promise<Buffer> {
     return cachedSecret;
   }
 
-  const generated = randomBytes(48).toString("base64url");
-  await writeRaw(SECRET_KEY, generated);
-  cachedSecret = Buffer.from(generated, "base64url");
+  const candidate = randomBytes(48).toString("base64url");
+  const won = await compareAndSet(SECRET_KEY, null, candidate);
+  // Losing the race is the common case on a cold start; read back whoever won.
+  const settled = won ? candidate : ((await readRaw(SECRET_KEY)) ?? candidate);
+
+  cachedSecret = Buffer.from(settled, "base64url");
   return cachedSecret;
+}
+
+/**
+ * Whether this deployment can actually keep someone signed in.
+ *
+ * A signing key has to outlive a single server instance. `AUTH_SECRET` always
+ * satisfies that; a durable store satisfies it because the generated key is
+ * shared through it. With neither, in production, every instance would sign
+ * with a different key — so we refuse to sign in at all rather than hand out a
+ * session that the next request silently rejects.
+ */
+export function sessionsCanPersist(): boolean {
+  if ((process.env.AUTH_SECRET?.length ?? 0) >= 16) return true;
+  if (storageHealth().durable) return true;
+  // Development runs as a single process, so the on-disk key is shared fine.
+  return process.env.NODE_ENV !== "production";
 }
 
 /* -------------------------------------------------------------- password */
@@ -284,9 +307,18 @@ export async function checkWriteRateLimit(scope: string): Promise<RateLimitResul
 /* ------------------------------------------------------------- attempting */
 
 export type LoginOutcome =
-  { ok: true } | { ok: false; reason: "credentials" | "ratelimited"; retryAfterSeconds?: number };
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "credentials" | "ratelimited" | "unconfigured";
+      retryAfterSeconds?: number;
+    };
 
 export async function attemptLogin(username: string, password: string): Promise<LoginOutcome> {
+  // Checked before anything else: handing out a session this deployment cannot
+  // verify on the next request is worse than saying so plainly.
+  if (!sessionsCanPersist()) return { ok: false, reason: "unconfigured" };
+
   const limit = await checkLoginRateLimit();
   if (!limit.allowed) {
     return { ok: false, reason: "ratelimited", retryAfterSeconds: limit.retryAfterSeconds };

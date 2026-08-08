@@ -23,6 +23,14 @@ export async function POST(request: Request) {
 
     if (outcome.ok) return ok({ signedIn: true, teacher: username.trim() });
 
+    if (outcome.reason === "unconfigured") {
+      return fail(
+        "This deployment can't keep you signed in yet. Connect a Redis store in the Vercel " +
+          "Storage tab, or set an AUTH_SECRET environment variable, then redeploy.",
+        503,
+      );
+    }
+
     if (outcome.reason === "ratelimited") {
       return fail("Too many sign-in attempts. Wait a few minutes and try again.", 429, {
         retryAfterSeconds: outcome.retryAfterSeconds,

@@ -1,5 +1,5 @@
 import { NO_STORE, handleRouteError, ok } from "@/lib/api-helpers";
-import { getSession } from "@/lib/auth";
+import { getSession, sessionsCanPersist } from "@/lib/auth";
 import { readState, toPublicState } from "@/lib/state";
 import { storageHealth } from "@/lib/store";
 
@@ -18,7 +18,11 @@ export async function GET() {
       ...toPublicState(state),
       signedIn: Boolean(session),
       teacher: session?.username ?? null,
-      storage: { durable: health.durable, driver: health.driver },
+      storage: {
+        durable: health.durable,
+        driver: health.driver,
+        sessionsPersist: sessionsCanPersist(),
+      },
     });
   } catch (error) {
     return handleRouteError(error);
