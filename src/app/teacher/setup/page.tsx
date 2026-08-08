@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { LeafMark } from "@/components/brand";
 import { useCelebration } from "@/components/celebration";
+import { LoadingPanel } from "@/components/empty-states";
 import { useLive } from "@/components/live-state";
 import { SiteHeader } from "@/components/site-header";
 import { TeamCrest } from "@/components/team-crest";
@@ -27,10 +28,40 @@ const STEPS: { id: Step; label: string }[] = [
 ];
 
 /**
+ * Suggests the next season's name. "Autumn Expedition" becomes
+ * "Autumn Expedition 2"; "Season 3" becomes "Season 4".
+ */
+function nextSeasonName(current: string | null): string {
+  if (!current) return "Season 1";
+  const match = current.trim().match(/^(.*?)(\d+)$/);
+  const suggestion = match ? `${match[1]}${Number(match[2]) + 1}` : `${current.trim()} 2`;
+  return suggestion.slice(0, LIMITS.maxSeasonNameLength);
+}
+
+/**
  * The season setup wizard. It is the only way to (re)create the board, and it
  * always ends with an explicit typed confirmation — resetting wipes every score.
  */
 export default function SetupPage() {
+  const { data } = useLive();
+
+  // Wait for the current season before mounting the wizard, so its starting
+  // values (team count, suggested name) can be derived once instead of synced.
+  if (!data) {
+    return (
+      <>
+        <SiteHeader />
+        <main id="main" className="mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6">
+          <LoadingPanel label="Loading the current season…" />
+        </main>
+      </>
+    );
+  }
+
+  return <SetupWizard key={data.season.id} />;
+}
+
+function SetupWizard() {
   const router = useRouter();
   const { data, applyState, refresh } = useLive();
   const { push } = useToast();
@@ -38,11 +69,16 @@ export default function SetupPage() {
 
   const alreadyConfigured = data?.configured ?? false;
   const existingTeamCount = data?.teams.length ?? 0;
+  const initialCount = alreadyConfigured
+    ? Math.min(LIMITS.maxTeams, Math.max(LIMITS.minTeams, existingTeamCount))
+    : 4;
 
   const [step, setStep] = useState<Step>("size");
-  const [count, setCount] = useState(4);
-  const [seasonName, setSeasonName] = useState("Season 1");
-  const [drafts, setDrafts] = useState<TeamDraft[]>(() => draftTeams(4));
+  const [count, setCount] = useState(initialCount);
+  const [seasonName, setSeasonName] = useState(() =>
+    nextSeasonName(alreadyConfigured ? (data?.season.name ?? null) : null),
+  );
+  const [drafts, setDrafts] = useState<TeamDraft[]>(() => draftTeams(initialCount));
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
