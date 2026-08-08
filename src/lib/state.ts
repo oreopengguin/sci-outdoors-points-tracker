@@ -19,12 +19,22 @@ import { defaultLogoFor, isLogoId } from "@/lib/logos";
 const STATE_KEY = "sot:state:v1";
 
 /** A brand-new, unconfigured season. The setup wizard fills it in. */
-export function emptyState(now = Date.now()): AppState {
+/**
+ * A brand-new, unconfigured season. The setup wizard fills it in.
+ *
+ * Its identity is deliberately constant. This value is rebuilt from scratch on
+ * every request that finds no stored state, so a random id here would mean the
+ * board's identity changed on each poll — which is both a lie (nothing
+ * changed) and a trap for any UI that treats `season.id` as stable.
+ */
+const UNCONFIGURED_SEASON_ID = "unconfigured";
+
+export function emptyState(): AppState {
   return {
     schema: 1,
     rev: 0,
     configured: false,
-    season: { id: randomUUID(), name: "Season 1", startedAt: now },
+    season: { id: UNCONFIGURED_SEASON_ID, name: "Season 1", startedAt: 0 },
     teams: [],
     events: [],
   };

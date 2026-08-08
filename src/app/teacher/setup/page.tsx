@@ -45,8 +45,12 @@ function nextSeasonName(current: string | null): string {
 export default function SetupPage() {
   const { data } = useLive();
 
-  // Wait for the current season before mounting the wizard, so its starting
-  // values (team count, suggested name) can be derived once instead of synced.
+  // Wait for the current season, then mount the wizard exactly once.
+  //
+  // Deliberately no `key` here. The board polls itself every few seconds, and
+  // anything that ties the wizard's identity to polled data would tear it down
+  // mid-edit and throw away everything the teacher has typed. Once mounted, the
+  // wizard owns its own state until the teacher leaves the page.
   if (!data) {
     return (
       <>
@@ -58,17 +62,34 @@ export default function SetupPage() {
     );
   }
 
-  return <SetupWizard key={data.season.id} />;
+  return (
+    <SetupWizard
+      alreadyConfigured={data.configured}
+      existingTeamCount={data.teams.length}
+      currentSeasonName={data.season.name}
+    />
+  );
 }
 
-function SetupWizard() {
+/**
+ * The props here are seeds, not live values: they are read once to initialise
+ * state and then ignored, so a later poll can never overwrite the teacher's
+ * work in progress.
+ */
+function SetupWizard({
+  alreadyConfigured,
+  existingTeamCount,
+  currentSeasonName,
+}: {
+  alreadyConfigured: boolean;
+  existingTeamCount: number;
+  currentSeasonName: string;
+}) {
   const router = useRouter();
-  const { data, applyState, refresh } = useLive();
+  const { applyState, refresh } = useLive();
   const { push } = useToast();
   const celebrate = useCelebration();
 
-  const alreadyConfigured = data?.configured ?? false;
-  const existingTeamCount = data?.teams.length ?? 0;
   const initialCount = alreadyConfigured
     ? Math.min(LIMITS.maxTeams, Math.max(LIMITS.minTeams, existingTeamCount))
     : 4;
@@ -76,7 +97,7 @@ function SetupWizard() {
   const [step, setStep] = useState<Step>("size");
   const [count, setCount] = useState(initialCount);
   const [seasonName, setSeasonName] = useState(() =>
-    nextSeasonName(alreadyConfigured ? (data?.season.name ?? null) : null),
+    nextSeasonName(alreadyConfigured ? currentSeasonName : null),
   );
   const [drafts, setDrafts] = useState<TeamDraft[]>(() => draftTeams(initialCount));
   const [confirmText, setConfirmText] = useState("");
