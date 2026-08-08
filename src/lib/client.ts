@@ -22,7 +22,7 @@ function csrfToken(): string {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
   const method = init?.method ?? "GET";
   const headers = new Headers(init?.headers);
   if (init?.body) headers.set("Content-Type", "application/json");
@@ -45,6 +45,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!res.ok) {
+    // A 409 means another teacher wrote at the same instant. That is a race,
+    // not a user error, so retry it here rather than showing them a scary
+    // message and making them press the button again.
+    if (res.status === 409 && attempt < 3) {
+      await new Promise((r) => setTimeout(r, 120 * (attempt + 1) + Math.random() * 120));
+      return request<T>(path, init, attempt + 1);
+    }
     const message =
       (payload && typeof payload === "object" && "error" in payload
         ? String((payload as { error: unknown }).error)

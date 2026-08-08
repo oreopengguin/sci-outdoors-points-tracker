@@ -68,7 +68,9 @@ export class ValidationError extends Error {
 export async function mutateState<T>(
   mutator: (state: AppState) => { state: AppState; result: T },
 ): Promise<{ state: AppState; result: T }> {
-  const attempts = 6;
+  // Generous, because losing a race here means a teacher's point award silently
+  // bounces. Each attempt re-reads, so retrying is always safe.
+  const attempts = 14;
   for (let attempt = 0; attempt < attempts; attempt++) {
     const raw = await readRaw(STATE_KEY);
     const current = parseState(raw);
@@ -86,8 +88,10 @@ export async function mutateState<T>(
     const ok = await compareAndSet(STATE_KEY, raw, JSON.stringify(validated));
     if (ok) return { state: validated, result };
 
-    // Brief, growing backoff to break up simultaneous retries.
-    await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
+    // Growing backoff with jitter. Without the jitter, contenders that collide
+    // once tend to collide again on exactly the same schedule.
+    const base = Math.min(20 * (attempt + 1), 160);
+    await new Promise((r) => setTimeout(r, base + Math.random() * base));
   }
   throw new ConflictError();
 }

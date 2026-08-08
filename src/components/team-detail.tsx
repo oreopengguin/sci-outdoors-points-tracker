@@ -7,7 +7,7 @@ import { TeamCrest } from "@/components/team-crest";
 import { Chip, Dialog } from "@/components/ui";
 import { getLogo } from "@/lib/logos";
 import { getColor } from "@/lib/palette";
-import { ordinal, plural, signed } from "@/lib/format";
+import { ordinal, signed } from "@/lib/format";
 import type { PointEvent, PublicTeam } from "@/lib/types";
 
 /**
@@ -86,7 +86,7 @@ export function TeamDetailDialog({
 
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
-            { label: "Entries", value: plural(stats.entries, "entry", "entries") },
+            { label: "Entries", value: stats.entries.toLocaleString() },
             { label: "Earned", value: signed(stats.earned) },
             { label: "Deducted", value: stats.lost === 0 ? "0" : signed(stats.lost) },
             {
@@ -128,6 +128,7 @@ export function TeamDetailDialog({
           events={stats.own}
           title={`${team.name} history`}
           emptyLabel="No points recorded for this team yet."
+          showTeamNames={false}
         />
       </div>
     </Dialog>

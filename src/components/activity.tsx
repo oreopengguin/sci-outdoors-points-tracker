@@ -22,6 +22,7 @@ export function ActivityItem({
   undoable = false,
   busy = false,
   undone = false,
+  showTeamName = true,
 }: {
   event: PointEvent;
   now: number | null;
@@ -30,6 +31,8 @@ export function ActivityItem({
   busy?: boolean;
   /** This entry has already been reversed, so it can't be undone again. */
   undone?: boolean;
+  /** Off inside a single team's history, where the name on every row is noise. */
+  showTeamName?: boolean;
 }) {
   const theme = getColor(event.teamColor);
   const canUndo =
@@ -41,7 +44,9 @@ export function ActivityItem({
 
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="truncate font-semibold text-ink">{event.teamName}</span>
+          {showTeamName ? (
+            <span className="truncate font-semibold text-ink">{event.teamName}</span>
+          ) : null}
           {event.delta !== 0 ? (
             <span className={cn("font-display text-sm font-black tabular-nums", deltaTone(event))}>
               {signed(event.delta)}
@@ -92,6 +97,7 @@ export function ActivityFeed({
   busyId,
   limit,
   className,
+  showTeamNames = true,
 }: {
   events: PointEvent[];
   title?: string;
@@ -101,6 +107,7 @@ export function ActivityFeed({
   busyId?: string | null;
   limit?: number;
   className?: string;
+  showTeamNames?: boolean;
 }) {
   const now = useClock();
   const shown = limit ? events.slice(0, limit) : events;
@@ -135,6 +142,7 @@ export function ActivityFeed({
               undoable={undoable}
               busy={busyId === event.id}
               undone={undoneIds.has(event.id)}
+              showTeamName={showTeamNames}
             />
           ))}
         </ul>
